@@ -15,11 +15,46 @@ class CarSerializer(serializers.ModelSerializer):
             'rent_per_day',
             'availability'
         )
+    # Bu method u override etmek yerine staff ve normal userlar için ayrı ayrı serializerlar oluşturulup
+    # View de get_serializer_class methode u override edilerek user a göre serializerlar seçilebilir.
+
     def get_fields(self):
-        fields=super().get_fields()
+        fields = super().get_fields()
         request = self.context.get('request')
 
-        if request.user and  not request.user.is_staff:
+        if request.user and not request.user.is_staff:
             fields.pop('availability')
             fields.pop('plate_number')
-        return fields    
+        return fields
+
+
+# class CarSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Car
+#         fields = (
+#             'id',
+#             'brand',
+#             'model',
+#             'year',
+#             'gear',
+#             'rent_per_day',
+#         )
+
+
+class ReservationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reservation
+        fields = (
+            'id',
+            'customer',
+            'car',
+            'start_date',
+            'end_date'
+        )
+        validators = [
+            serializers.UniqueTogetherValidator(
+                queryset=Reservation.objects.all(),
+                fields=('customer', 'start_date', 'end_date'),
+                message=('You alreday have a reservation between these dates...')
+            )
+        ]
