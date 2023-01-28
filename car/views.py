@@ -7,7 +7,8 @@ from .models import Car, Reservation
 from .serializers import CarSerializer, ReservationSerializer
 from .permissions import IsStaffOrReadOnly
 
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
+from django.utils import timezone
 
 
 class CarView(ModelViewSet):
@@ -29,11 +30,18 @@ class CarView(ModelViewSet):
             #     start_date__lt=end, end_date__gt=start
             # ).values_list('car_id', flat=True)  # [1, 2]
 
-            not_available = Reservation.objects.filter(
-                Q(start_date__lt=end) & Q(end_date__gt=start)
-            ).values_list('car_id', flat=True)  # [1, 2]
+            # not_available = Reservation.objects.filter(
+            #     Q(start_date__lt=end) & Q(end_date__gt=start)
+            # ).values_list('car_id', flat=True)  # [1, 2]
 
-            queryset = queryset.exclude(id__in=not_available)
+            # queryset = queryset.exclude(id__in=not_available)
+
+            queryset = queryset.annotate(
+                is_available=~Exists(Reservation.objects.filter(
+                    Q(car=OuterRef('pk')) & Q(
+                        start_date__lt=end) & Q(end_date__gt=start)
+                ))
+            )
 
         return queryset
 
@@ -69,9 +77,11 @@ class ReservationDetailView(RetrieveUpdateDestroyAPIView):
         end = serializer.validated_data.get('end_date')
         car = serializer.validated_data.get('car')
         start = instance.start_date
-        # today = datetime.today
+        today = timezone.now().date()
         if Reservation.objects.filter(car=car).exists():
-            for res in Reservation.objects.filter(car=car):
+            # a = Reservation.objects.filter(car=car, start_date__gte=today)
+            # print(len(a))
+            for res in Reservation.objects.filter(car=car, end_date__gte=today):
                 if start < res.start_date < end:
                     return Response({'message': 'Car is not available...'})
 
